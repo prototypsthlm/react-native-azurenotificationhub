@@ -34,6 +34,7 @@ import java.util.Set;
 public class ReactNativeNotificationsHandler extends NotificationsHandler {
     public static final String TAG = "ReactNativeNotificationsHandler";
     private static final String NOTIFICATION_CHANNEL_ID = "rn-push-notification-channel-id";
+    private static final String CHANNEL_ID = "channel_01";
     private static final long DEFAULT_VIBRATION = 300L;
 
     private Context context;
@@ -42,7 +43,7 @@ public class ReactNativeNotificationsHandler extends NotificationsHandler {
     public void onReceive(Context context, Bundle bundle) {
         this.context = context;
         sendNotification(bundle);
-        sendBroadcast(context, bundle, 0);
+sendBroadcast(context, bundle, 0);
     }
 
     public void sendBroadcast(final Context context, final Bundle bundle, final long delay) {
@@ -56,21 +57,20 @@ public class ReactNativeNotificationsHandler extends NotificationsHandler {
         for (String key : keys) {
             try {
                 json.put(key, bundle.get(key));
-                        } catch (JSONException e) {}
-            }
+            } catch (JSONException e) {}
+        }
 
         Intent event= new Intent(TAG);
         event.putExtra("event", ReactNativeNotificationHubModule.DEVICE_NOTIF_EVENT);
         event.putExtra("data", json.toString());
-                    LocalBroadcastManager localBroadcastManager = LocalBroadcastManager.getInstance(context);
+        LocalBroadcastManager localBroadcastManager = LocalBroadcastManager.getInstance(context);
         localBroadcastManager.sendBroadcast(event);
-                }
-                catch (Exception e) {}
+    }                
+    catch (Exception e) {}
             }
         }).start();
     }
-
-    private Class getMainActivityClass() {
+        private Class getMainActivityClass() {
         String packageName = context.getPackageName();
         Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(packageName);
         String className = launchIntent.getComponent().getClassName();
@@ -114,12 +114,13 @@ public class ReactNativeNotificationsHandler extends NotificationsHandler {
                 title = context.getPackageManager().getApplicationLabel(appInfo).toString();
             }
 
-            NotificationCompat.Builder notification = new NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
+            NotificationCompat.Builder notification = new NotificationCompat.Builder(context)
                     .setContentTitle(title)
                     .setTicker(bundle.getString("ticker"))
                     .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    .setAutoCancel(bundle.getBoolean("autoCancel", true));
+                    .setAutoCancel(bundle.getBoolean("autoCancel", true))
+                    .setChannelId(CHANNEL_ID);
 
             String group = bundle.getString("group");
             if (group != null) {
@@ -298,9 +299,9 @@ public class ReactNativeNotificationsHandler extends NotificationsHandler {
             return;
         if (manager == null)
             return;
-         final CharSequence name = "rn-push-notification-channel";
+        final CharSequence name = "rn-push-notification-channel";
         int importance = NotificationManager.IMPORTANCE_DEFAULT;
-        NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
+        NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
         channel.enableLights(true);
         channel.enableVibration(true);
         manager.createNotificationChannel(channel);
