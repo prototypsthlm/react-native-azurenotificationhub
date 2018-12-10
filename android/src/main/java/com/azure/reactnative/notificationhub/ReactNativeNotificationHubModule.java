@@ -31,7 +31,7 @@ public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule
     public static final String DEVICE_NOTIF_EVENT = "remoteNotificationReceived";
 
     private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
-    private static final int NOTIFICATION_DELAY_ON_START = 0;
+    private static final int NOTIFICATION_DELAY_ON_START = 1500;
 
     private static final String ERROR_INVALID_ARGUMENTS = "E_INVALID_ARGUMENTS";
     private static final String ERROR_PLAY_SERVICES = "E_PLAY_SERVICES";
