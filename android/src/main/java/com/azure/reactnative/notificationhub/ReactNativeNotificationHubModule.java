@@ -31,7 +31,7 @@ public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule
     public static final String DEVICE_NOTIF_EVENT = "remoteNotificationReceived";
 
     private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
-    private static final int NOTIFICATION_DELAY_ON_START = 3000;
+    private static final int NOTIFICATION_DELAY_ON_START = 0;
 
     private static final String ERROR_INVALID_ARGUMENTS = "E_INVALID_ARGUMENTS";
     private static final String ERROR_PLAY_SERVICES = "E_PLAY_SERVICES";
@@ -132,14 +132,25 @@ public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule
         }
     }
 
+    private Bundle getBundleFromIntent(Intent intent) {
+        Bundle bundle = null;
+        if (intent.hasExtra("notification")) {
+            bundle = intent.getBundleExtra("notification");
+        } else if (intent.hasExtra("google.message_id")) {
+            bundle = intent.getExtras();
+        }
+        return bundle;
+    }
+
     @Override
     public void onHostResume() {
         Activity activity = getCurrentActivity();
         if (activity != null) {
             Intent intent = activity.getIntent();
             if (intent != null) {
-                Bundle bundle = intent.getBundleExtra("notification");
+                Bundle bundle = getBundleFromIntent(intent);
                 if (bundle != null) {
+                    bundle.putBoolean("openedByNotification", true);
                     new ReactNativeNotificationsHandler().sendBroadcast(mReactContext, bundle, NOTIFICATION_DELAY_ON_START);
                 }
             }
