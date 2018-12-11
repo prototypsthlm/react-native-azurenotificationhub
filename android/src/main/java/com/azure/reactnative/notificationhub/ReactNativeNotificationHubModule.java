@@ -5,10 +5,13 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.content.LocalBroadcastManager;
 
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.LifecycleEventListener;
+import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
@@ -25,13 +28,18 @@ import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.UiThreadUtil;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.Set;
+
 public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
     public static final String NOTIF_REGISTER_AZURE_HUB_EVENT = "azureNotificationHubRegistered";
     public static final String NOTIF_AZURE_HUB_REGISTRATION_ERROR_EVENT = "azureNotificationHubRegistrationError";
     public static final String DEVICE_NOTIF_EVENT = "remoteNotificationReceived";
 
     private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
-    private static final int NOTIFICATION_DELAY_ON_START = 1500;
+    private static final int NOTIFICATION_DELAY_ON_START = 0;
 
     private static final String ERROR_INVALID_ARGUMENTS = "E_INVALID_ARGUMENTS";
     private static final String ERROR_PLAY_SERVICES = "E_PLAY_SERVICES";
@@ -142,8 +150,44 @@ public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule
         return bundle;
     }
 
+    @ReactMethod
+    public void getInitialNotification(Promise promise) {
+        WritableMap params = Arguments.createMap();
+        Activity activity = getCurrentActivity();
+        if (activity != null) {
+            Intent intent = activity.getIntent();
+            Bundle bundle = getBundleFromIntent(intent);
+            if (bundle != null) {
+                bundle.putBoolean("openedByNotification", true);
+                String bundleString = convertJSON(bundle);
+                params.putString("dataJSON", bundleString);
+            }
+        }
+        promise.resolve(params);
+    }
+
+    private String convertJSON(Bundle bundle) {
+        JSONObject json = new JSONObject();
+        Set<String> keys = bundle.keySet();
+        for (String key : keys) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    json.put(key, JSONObject.wrap(bundle.get(key)));
+                } else {
+                    json.put(key, bundle.get(key));
+                }
+            } catch (JSONException e) {
+                return null;
+            }
+        }
+        return json.toString();
+    }
+
     @Override
     public void onHostResume() {
+        /*
+        So we've moved handling notifications to getInitialNotification instead of pushing them
+        as when pushing we're not sure that all of react native components have mounted yet
         Activity activity = getCurrentActivity();
         if (activity != null) {
             Intent intent = activity.getIntent();
@@ -154,7 +198,7 @@ public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule
                     new ReactNativeNotificationsHandler().sendBroadcast(mReactContext, bundle, NOTIFICATION_DELAY_ON_START);
                 }
             }
-        }
+        }*/
     }
     @Override
     public void onHostPause() {}
