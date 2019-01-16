@@ -56,6 +56,7 @@ public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule
         LocalBroadcastManager localBroadcastManager = LocalBroadcastManager.getInstance(reactContext);
         localBroadcastManager.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(ReactNativeRegistrationIntentService.TAG));
         localBroadcastManager.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(ReactNativeNotificationsHandler.TAG));
+        localBroadcastManager.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(ReactNativeBackgroundNotificationHandler.TAG));
         reactContext.addLifecycleEventListener(this);
     }
 
@@ -95,6 +96,9 @@ public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule
         notificationHubUtil.setConnectionString(reactContext, connectionString);
         notificationHubUtil.setHubName(reactContext, hubName);
         notificationHubUtil.setTags(reactContext, tags);
+
+        String backgroundTaskName = config.hasKey("backgroundTaskName") ? config.getString("backgroundTaskName") : null;
+        notificationHubUtil.setBackgroundTaskName(reactContext, backgroundTaskName);
 
         GoogleApiAvailability apiAvailability = GoogleApiAvailability.getInstance();
         int resultCode = apiAvailability.isGooglePlayServicesAvailable(reactContext);

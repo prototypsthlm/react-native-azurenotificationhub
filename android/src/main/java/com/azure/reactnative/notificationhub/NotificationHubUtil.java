@@ -22,6 +22,8 @@ public class NotificationHubUtil {
             "AzureNotificationHub_FCMToken";
     private static final String KEY_FOR_PREFS_TAGS =
             "AzureNotificationHub_Tags";
+    private static final String KEY_FOR_PREFS_BACKGROUND_TASK =
+            "AzureNotificationHub_BackgroundTask";
 
     public static NotificationHubUtil getInstance() {
         if(sharedNotificationHubUtilInstance == null) {
@@ -70,6 +72,14 @@ public class NotificationHubUtil {
     public void setTags(Context context, String[] tags) {
         Set<String> set = tags != null ? new HashSet<>(Arrays.asList(tags)) : null;
         setPrefSet(context, KEY_FOR_PREFS_TAGS, set);
+    }
+
+    public String getBackgroundTaskName(Context context) {
+        return getPref(context, KEY_FOR_PREFS_BACKGROUND_TASK);
+    }
+
+    public void setBackgroundTaskName(Context context, String name) {
+        setPref(context, KEY_FOR_PREFS_BACKGROUND_TASK, name);
     }
 
     private String getPref(Context context, String key) {

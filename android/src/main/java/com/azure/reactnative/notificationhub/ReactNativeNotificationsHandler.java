@@ -1,11 +1,6 @@
 package com.azure.reactnative.notificationhub;
 
-import android.app.AlarmManager;
-import android.app.Application;
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
+import android.app.*;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
@@ -29,6 +24,7 @@ import org.json.JSONObject;
 
 import com.microsoft.windowsazure.notifications.NotificationsHandler;
 
+import java.util.List;
 import java.util.Set;
 
 public class ReactNativeNotificationsHandler extends NotificationsHandler {
@@ -42,8 +38,9 @@ public class ReactNativeNotificationsHandler extends NotificationsHandler {
     @Override
     public void onReceive(Context context, Bundle bundle) {
         this.context = context;
+        Log.i(TAG, "We got a notification");
         sendNotification(bundle);
-sendBroadcast(context, bundle, 0);
+        sendBroadcast(context, bundle, 0);
     }
 
     public void sendBroadcast(final Context context, final Bundle bundle, final long delay) {
