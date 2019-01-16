@@ -17,7 +17,7 @@ public class ReactNativeBackgroundNotificationService extends HeadlessJsTaskServ
                     extras.getString("taskName"),
                     Arguments.fromBundle(extras),
                     5000,
-                    true
+                    false
             );
         } else {
             return null;
