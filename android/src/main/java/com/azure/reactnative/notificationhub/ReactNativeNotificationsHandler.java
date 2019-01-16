@@ -17,6 +17,7 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.HeadlessJsTaskService;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -38,9 +39,30 @@ public class ReactNativeNotificationsHandler extends NotificationsHandler {
     @Override
     public void onReceive(Context context, Bundle bundle) {
         this.context = context;
-        Log.i(TAG, "We got a notification");
+        runBackgroundTask(context, bundle);
         sendNotification(bundle);
         sendBroadcast(context, bundle, 0);
+    }
+
+    private void runBackgroundTask(Context context, Bundle bundle) {
+        this.context = context;
+        String taskName = NotificationHubUtil.getInstance().getBackgroundTaskName(context);
+        Log.i(TAG, "Got a notification to run with background task " + taskName);
+        if (taskName != null) {
+            Log.i(TAG, "Got a notification to run with background task " + taskName);
+            sendToBackground(context, bundle, taskName);
+        } else {
+            Log.d(TAG, "No task name");
+        }
+    }
+
+    private void sendToBackground(Context context, final Bundle bundle, final String taskName) {
+        HeadlessJsTaskService.acquireWakeLockNow(context);
+        Intent service = new Intent(context, ReactNativeBackgroundNotificationService.class);
+        Bundle serviceBundle = new Bundle(bundle);
+        serviceBundle.putString("taskName", taskName);
+        service.putExtras(serviceBundle);
+        context.startService(service);
     }
 
     public void sendBroadcast(final Context context, final Bundle bundle, final long delay) {

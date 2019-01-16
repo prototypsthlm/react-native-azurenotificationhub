@@ -56,7 +56,6 @@ public class ReactNativeNotificationHubModule extends ReactContextBaseJavaModule
         LocalBroadcastManager localBroadcastManager = LocalBroadcastManager.getInstance(reactContext);
         localBroadcastManager.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(ReactNativeRegistrationIntentService.TAG));
         localBroadcastManager.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(ReactNativeNotificationsHandler.TAG));
-        localBroadcastManager.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(ReactNativeBackgroundNotificationHandler.TAG));
         reactContext.addLifecycleEventListener(this);
     }
 
