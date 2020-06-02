@@ -1,6 +1,8 @@
 package com.azure.reactnative.notificationhub;
 
-import android.app.*;
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
@@ -8,346 +10,207 @@ import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.v4.app.NotificationCompat;
-import android.support.v4.content.LocalBroadcastManager;
+
+import androidx.core.app.NotificationCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
 import android.util.Log;
 
-import com.facebook.react.bridge.ReadableMap;
-import com.facebook.react.HeadlessJsTaskService;
+import static com.azure.reactnative.notificationhub.ReactNativeConstants.*;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
+public final class ReactNativeNotificationsHandler {
+    public static final String TAG = "ReactNativeNotification";
 
-import com.microsoft.windowsazure.notifications.NotificationsHandler;
-
-import java.util.List;
-import java.util.Set;
-
-public class ReactNativeNotificationsHandler extends NotificationsHandler {
-    public static final String TAG = "ReactNativeNotificationsHandler";
-    private static final String NOTIFICATION_CHANNEL_ID = "rn-push-notification-channel-id";
-    private static final String CHANNEL_ID = "channel_01";
     private static final long DEFAULT_VIBRATION = 300L;
 
-    private Context context;
-
-    @Override
-    public void onReceive(Context context, Bundle bundle) {
-        this.context = context;
-        if (!isAppOnForeground(context)) {
-            runBackgroundTask(context, bundle);
-        }
-        sendNotification(bundle);
-        sendBroadcast(context, bundle, 0);
-    }
-
-    private void runBackgroundTask(Context context, Bundle bundle) {
-        this.context = context;
-        String taskName = NotificationHubUtil.getInstance().getBackgroundTaskName(context);
-        Log.i(TAG, "Got a notification to run with background task " + taskName);
-        if (taskName != null) {
-            Log.i(TAG, "Got a notification to run with background task " + taskName);
-            sendToBackground(context, bundle, taskName);
-        } else {
-            Log.d(TAG, "No task name");
-        }
-    }
-
-    private void sendToBackground(Context context, final Bundle bundle, final String taskName) {
-        HeadlessJsTaskService.acquireWakeLockNow(context);
-        Intent service = new Intent(context, ReactNativeBackgroundNotificationService.class);
-        Bundle serviceBundle = new Bundle(bundle);
-        serviceBundle.putString("taskName", taskName);
-        service.putExtras(serviceBundle);
-        context.startService(service);
-    }
-
-    private boolean isAppOnForeground(Context context) {
-        /**
-         We need to check if app is in foreground otherwise the app will crash.
-         http://stackoverflow.com/questions/8489993/check-android-application-is-in-foreground-or-not
-         **/
-        ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-        List<ActivityManager.RunningAppProcessInfo> appProcesses =
-                activityManager.getRunningAppProcesses();
-        if (appProcesses == null) {
-            return false;
-        }
-        final String packageName = context.getPackageName();
-        for (ActivityManager.RunningAppProcessInfo appProcess : appProcesses) {
-            if (appProcess.importance ==
-                    ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND &&
-                    appProcess.processName.equals(packageName)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public void sendBroadcast(final Context context, final Bundle bundle, final long delay) {
-        (new Thread() {
+    /**
+     * Used for both "notification" and "data" payload types in order to notify a running ReactJS app.
+     *
+     * Example:
+     *  {"data":{"message":"Notification Hub test notification"}} // data
+     *  {"notification":{"body":"Notification Hub test notification"}} // notification
+     */
+    public static void sendBroadcast(final Context context, final Intent intent, final long delay) {
+        ReactNativeUtil.runInWorkerThread(new Runnable() {
             public void run() {
-                try
-                {
+                try {
                     Thread.currentThread().sleep(delay);
-        JSONObject json = new JSONObject();
-        Set<String> keys = bundle.keySet();
-        for (String key : keys) {
-            try {
-                json.put(key, bundle.get(key));
-            } catch (JSONException e) {}
-        }
-
-        Intent event= new Intent(TAG);
-        event.putExtra("event", ReactNativeNotificationHubModule.DEVICE_NOTIF_EVENT);
-        event.putExtra("data", json.toString());
-        LocalBroadcastManager localBroadcastManager = LocalBroadcastManager.getInstance(context);
-        localBroadcastManager.sendBroadcast(event);
-    }                
-    catch (Exception e) {}
-            }
-        }).start();
-    }
-        private Class getMainActivityClass() {
-        String packageName = context.getPackageName();
-        Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(packageName);
-        String className = launchIntent.getComponent().getClassName();
-        try {
-            return Class.forName(className);
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    private AlarmManager getAlarmManager() {
-        return (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-    }
-
-    private void sendNotification(Bundle bundle) {
-        try {
-            Class intentClass = getMainActivityClass();
-            if (intentClass == null) {
-                Log.e(TAG, "No activity class found for the notification");
-                return;
-            }
-
-            if (bundle.getString("message") == null) {
-                Log.e(TAG, "No message specified for the notification");
-                return;
-            }
-
-            String notificationIdString = bundle.getString("google.message_id");
-            if (notificationIdString == null) {
-                Log.e(TAG, "No notification ID specified for the notification");
-                return;
-            }
-
-            Resources res = context.getResources();
-            String packageName = context.getPackageName();
-
-            String title = bundle.getString("title");
-            if (title == null) {
-                ApplicationInfo appInfo = context.getApplicationInfo();
-                title = context.getPackageManager().getApplicationLabel(appInfo).toString();
-            }
-
-            NotificationCompat.Builder notification = new NotificationCompat.Builder(context)
-                    .setContentTitle(title)
-                    .setTicker(bundle.getString("ticker"))
-                    .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    .setAutoCancel(bundle.getBoolean("autoCancel", true))
-                    .setChannelId(CHANNEL_ID);
-
-            String group = bundle.getString("group");
-            if (group != null) {
-                notification.setGroup(group);
-            }
-
-            notification.setContentText(bundle.getString("message"));
-
-            String largeIcon = bundle.getString("largeIcon");
-
-            String subText = bundle.getString("subText");
-
-            if (subText != null) {
-                notification.setSubText(subText);
-            }
-
-            String numberString = bundle.getString("number");
-            if (numberString != null) {
-                notification.setNumber(Integer.parseInt(numberString));
-            }
-
-            int smallIconResId;
-            int largeIconResId;
-
-            String smallIcon = bundle.getString("smallIcon");
-
-            if (smallIcon != null) {
-                smallIconResId = res.getIdentifier(smallIcon, "mipmap", packageName);
-            } else {
-                smallIconResId = res.getIdentifier("ic_notification", "mipmap", packageName);
-            }
-
-            if (smallIconResId == 0) {
-                smallIconResId = res.getIdentifier("ic_launcher", "mipmap", packageName);
-
-                if (smallIconResId == 0) {
-                    smallIconResId = android.R.drawable.ic_dialog_info;
+                    LocalBroadcastManager localBroadcastManager = LocalBroadcastManager.getInstance(context);
+                    localBroadcastManager.sendBroadcast(intent);
+                } catch (Exception e) {
                 }
             }
+        });
+    }
 
-            if (largeIcon != null) {
-                largeIconResId = res.getIdentifier(largeIcon, "mipmap", packageName);
-            } else {
-                largeIconResId = res.getIdentifier("ic_launcher", "mipmap", packageName);
+    /**
+     * Used for both "notification" and "data" payload types in order to notify a running ReactJS app.
+     *
+     * Example:
+     *  {"data":{"message":"Notification Hub test notification"}} // data
+     *  {"notification":{"body":"Notification Hub test notification"}} // notification
+     */
+    public static void sendBroadcast(final Context context, final Bundle bundle, final long delay) {
+        ReactNativeUtil.runInWorkerThread(new Runnable() {
+            public void run() {
+                try {
+                    Thread.currentThread().sleep(delay);
+                    Intent intent = ReactNativeUtil.createBroadcastIntent(TAG, bundle);
+                    LocalBroadcastManager localBroadcastManager = LocalBroadcastManager.getInstance(context);
+                    localBroadcastManager.sendBroadcast(intent);
+                } catch (Exception e) {
+                }
             }
+        });
+    }
 
-            Bitmap largeIconBitmap = BitmapFactory.decodeResource(res, largeIconResId);
+    /**
+     * Used for "data" payload type in order to create a notification and announce it using
+     * notification service.
+     *
+     * Example: {"data":{"message":"Notification Hub test notification"}}
+     */
+    public static void sendNotification(final Context context,
+                                        final Bundle bundle,
+                                        final String notificationChannelID) {
+        ReactNativeUtil.runInWorkerThread(new Runnable() {
+            public void run() {
+                try {
+                    Class intentClass = ReactNativeUtil.getMainActivityClass(context);
+                    if (intentClass == null) {
+                        Log.e(TAG, ERROR_NO_ACTIVITY_CLASS);
+                        return;
+                    }
 
-            if (largeIconResId != 0 && (largeIcon != null || Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)) {
-                notification.setLargeIcon(largeIconBitmap);
-            }
+                    String message = bundle.getString(KEY_REMOTE_NOTIFICATION_MESSAGE);
+                    if (message == null) {
+                        message = bundle.getString(KEY_REMOTE_NOTIFICATION_BODY);
+                    }
 
-            notification.setSmallIcon(smallIconResId);
-            String bigText = bundle.getString("bigText");
+                    if (message == null) {
+                        Log.e(TAG, ERROR_NO_MESSAGE);
+                        return;
+                    }
 
-            if (bigText == null) {
-                bigText = bundle.getString("message");
-            }
+                    Resources res = context.getResources();
+                    String packageName = context.getPackageName();
 
-            notification.setStyle(new NotificationCompat.BigTextStyle().bigText(bigText));
+                    String title = bundle.getString(KEY_REMOTE_NOTIFICATION_TITLE);
+                    if (title == null) {
+                        ApplicationInfo appInfo = context.getApplicationInfo();
+                        title = context.getPackageManager().getApplicationLabel(appInfo).toString();
+                    }
 
-            Intent intent = new Intent(context, intentClass);
-            intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            bundle.putBoolean("userInteraction", true);
-            intent.putExtra("notification", bundle);
+                    int priority = ReactNativeUtil.getNotificationCompatPriority(
+                            bundle.getString(KEY_REMOTE_NOTIFICATION_PRIORITY));
+                    NotificationCompat.Builder notificationBuilder = ReactNativeUtil.initNotificationCompatBuilder(
+                            context,
+                            notificationChannelID,
+                            title,
+                            bundle.getString(KEY_REMOTE_NOTIFICATION_TICKER),
+                            NotificationCompat.VISIBILITY_PRIVATE,
+                            priority,
+                            bundle.getBoolean(KEY_REMOTE_NOTIFICATION_AUTO_CANCEL, true));
 
-            if (!bundle.containsKey("playSound") || bundle.getBoolean("playSound")) {
-                Uri soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-                String soundName = bundle.getString("soundName");
-                if (soundName != null) {
-                    if (!"default".equalsIgnoreCase(soundName)) {
+                    String group = bundle.getString(KEY_REMOTE_NOTIFICATION_GROUP);
+                    if (group != null) {
+                        notificationBuilder.setGroup(group);
+                    }
 
-                        // sound name can be full filename, or just the resource name.
-                        // So the strings 'my_sound.mp3' AND 'my_sound' are accepted
-                        // The reason is to make the iOS and android javascript interfaces compatible
+                    notificationBuilder.setContentText(message);
 
-                        int resId;
-                        if (context.getResources().getIdentifier(soundName, "raw", context.getPackageName()) != 0) {
-                            resId = context.getResources().getIdentifier(soundName, "raw", context.getPackageName());
-                        } else {
-                            soundName = soundName.substring(0, soundName.lastIndexOf('.'));
-                            resId = context.getResources().getIdentifier(soundName, "raw", context.getPackageName());
+                    String subText = bundle.getString(KEY_REMOTE_NOTIFICATION_SUB_TEXT);
+                    if (subText != null) {
+                        notificationBuilder.setSubText(subText);
+                    }
+
+                    String numberString = bundle.getString(KEY_REMOTE_NOTIFICATION_NUMBER);
+                    if (numberString != null) {
+                        notificationBuilder.setNumber(Integer.parseInt(numberString));
+                    }
+
+                    int smallIconResId = ReactNativeUtil.getSmallIcon(bundle, res, packageName);
+                    notificationBuilder.setSmallIcon(smallIconResId);
+
+                    if (bundle.getString(KEY_REMOTE_NOTIFICATION_AVATAR_URL) == null) {
+                        String largeIcon = bundle.getString(KEY_REMOTE_NOTIFICATION_LARGE_ICON);
+                        int largeIconResId = ReactNativeUtil.getLargeIcon(bundle, largeIcon, res, packageName);
+                        Bitmap largeIconBitmap = BitmapFactory.decodeResource(res, largeIconResId);
+                        if (largeIconResId != 0 && (
+                                largeIcon != null ||
+                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)) {
+                            notificationBuilder.setLargeIcon(largeIconBitmap);
                         }
-
-                        soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + resId);
-                    }
-                }
-                notification.setSound(soundUri);
-            }
-
-            if (bundle.containsKey("ongoing") || bundle.getBoolean("ongoing")) {
-                notification.setOngoing(bundle.getBoolean("ongoing"));
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                notification.setCategory(NotificationCompat.CATEGORY_CALL);
-
-                String color = bundle.getString("color");
-                if (color != null) {
-                    notification.setColor(Color.parseColor(color));
-                }
-            }
-
-            int notificationID = notificationIdString.hashCode();
-
-            PendingIntent pendingIntent = PendingIntent.getActivity(context, notificationID, intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT);
-
-            NotificationManager notificationManager = notificationManager();
-            checkOrCreateChannel(notificationManager);
-
-            notification.setContentIntent(pendingIntent);
-
-            if (!bundle.containsKey("vibrate") || bundle.getBoolean("vibrate")) {
-                long vibration = bundle.containsKey("vibration") ? (long) bundle.getDouble("vibration") : DEFAULT_VIBRATION;
-                if (vibration == 0)
-                    vibration = DEFAULT_VIBRATION;
-                notification.setVibrate(new long[]{0, vibration});
-            }
-
-            JSONArray actionsArray = null;
-            try {
-                actionsArray = bundle.getString("actions") != null ? new JSONArray(bundle.getString("actions")) : null;
-            } catch (JSONException e) {
-                Log.e(TAG, "Exception while converting actions to JSON object.", e);
-            }
-
-            if (actionsArray != null) {
-                // No icon for now. The icon value of 0 shows no icon.
-                int icon = 0;
-
-                // Add button for each actions.
-                for (int i = 0; i < actionsArray.length(); i++) {
-                    String action;
-                    try {
-                        action = actionsArray.getString(i);
-                    } catch (JSONException e) {
-                        Log.e(TAG, "Exception while getting action from actionsArray.", e);
-                        continue;
+                    } else {
+                        Bitmap largeIconBitmap = ReactNativeUtil.fetchImage(
+                                bundle.getString(KEY_REMOTE_NOTIFICATION_AVATAR_URL));
+                        if (largeIconBitmap != null) {
+                            notificationBuilder.setLargeIcon(largeIconBitmap);
+                        }
                     }
 
-                    Intent actionIntent = new Intent();
-                    actionIntent.setAction(context.getPackageName() + "." + action);
-                    // Add "action" for later identifying which button gets pressed.
-                    bundle.putString("action", action);
-                    actionIntent.putExtra("notification", bundle);
-                    PendingIntent pendingActionIntent = PendingIntent.getBroadcast(context, notificationID, actionIntent,
+                    String bigText = bundle.getString(KEY_REMOTE_NOTIFICATION_BIG_TEXT);
+                    if (bigText == null) {
+                        bigText = message;
+                    }
+                    notificationBuilder.setStyle(ReactNativeUtil.getBigTextStyle(bigText));
+
+                    // Create notification intent
+                    Intent intent = ReactNativeUtil.createNotificationIntent(context, bundle, intentClass);
+
+                    if (!bundle.containsKey(KEY_REMOTE_NOTIFICATION_PLAY_SOUND) || bundle.getBoolean(KEY_REMOTE_NOTIFICATION_PLAY_SOUND)) {
+                        Uri soundUri = ReactNativeUtil.getSoundUri(context, bundle);
+                        notificationBuilder.setSound(soundUri);
+                    }
+
+                    if (bundle.containsKey(KEY_REMOTE_NOTIFICATION_ONGOING)) {
+                        notificationBuilder.setOngoing(bundle.getBoolean(KEY_REMOTE_NOTIFICATION_ONGOING));
+                    }
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        notificationBuilder.setCategory(NotificationCompat.CATEGORY_CALL);
+
+                        String color = bundle.getString(KEY_REMOTE_NOTIFICATION_COLOR);
+                        if (color != null) {
+                            notificationBuilder.setColor(Color.parseColor(color));
+                        }
+                    }
+
+                    int notificationID = bundle.getString(KEY_REMOTE_NOTIFICATION_ID).hashCode();
+                    PendingIntent pendingIntent = PendingIntent.getActivity(context, notificationID, intent,
                             PendingIntent.FLAG_UPDATE_CURRENT);
-                    notification.addAction(icon, action, pendingActionIntent);
+                    notificationBuilder.setContentIntent(pendingIntent);
+
+                    if (!bundle.containsKey(KEY_REMOTE_NOTIFICATION_VIBRATE) || bundle.getBoolean(KEY_REMOTE_NOTIFICATION_VIBRATE)) {
+                        long vibration = bundle.containsKey(KEY_REMOTE_NOTIFICATION_VIBRATION) ?
+                                (long) bundle.getDouble(KEY_REMOTE_NOTIFICATION_VIBRATION) : DEFAULT_VIBRATION;
+                        if (vibration == 0)
+                            vibration = DEFAULT_VIBRATION;
+                        notificationBuilder.setVibrate(new long[]{0, vibration});
+                    }
+
+                    // Process notification's actions
+                    ReactNativeUtil.processNotificationActions(context, bundle, notificationBuilder, notificationID);
+
+                    Notification notification = notificationBuilder.build();
+                    NotificationManager notificationManager = (NotificationManager) context.getSystemService(
+                            Context.NOTIFICATION_SERVICE);
+                    if (bundle.containsKey(KEY_REMOTE_NOTIFICATION_TAG)) {
+                        String tag = bundle.getString(KEY_REMOTE_NOTIFICATION_TAG);
+                        notificationManager.notify(tag, notificationID, notification);
+                    } else {
+                        notificationManager.notify(notificationID, notification);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, ERROR_SEND_PUSH_NOTIFICATION, e);
                 }
             }
-
-            Notification info = notification.build();
-            info.defaults |= Notification.DEFAULT_LIGHTS;
-
-            if (bundle.containsKey("tag")) {
-                String tag = bundle.getString("tag");
-                notificationManager.notify(tag, notificationID, info);
-            } else {
-                notificationManager.notify(notificationID, info);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "failed to send push notification", e);
-        }
+        });
     }
 
-    private NotificationManager notificationManager() {
-        return (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-    }
-
-    private static boolean channelCreated = false;
-    private static void checkOrCreateChannel(NotificationManager manager) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
-            return;
-        if (channelCreated)
-            return;
-        if (manager == null)
-            return;
-        final CharSequence name = "rn-push-notification-channel";
-        int importance = NotificationManager.IMPORTANCE_DEFAULT;
-        NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
-        channel.enableLights(true);
-        channel.enableVibration(true);
-        manager.createNotificationChannel(channel);
-        channelCreated = true;
+    private ReactNativeNotificationsHandler() {
     }
 }

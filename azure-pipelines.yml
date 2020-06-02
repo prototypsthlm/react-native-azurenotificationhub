@@ -1,0 +1,124 @@
+trigger:
+  branches:
+    include:
+    - master
+    - releases/*
+    exclude:
+    - refs/tag/*
+
+pool:
+  vmImage: 'macOS-10.14'
+
+steps:
+- script: |
+    mv ./sample ../
+  displayName: 'Prepare sample project'
+
+- task: NodeTool@0
+  inputs:
+    versionSpec: '10.15.3'
+  displayName: 'Install Node'
+
+- script: gem install slather
+  displayName: 'Install slather'
+  workingDirectory: '../sample'
+
+- script: dotnet tool install -g dotnet-reportgenerator-globaltool
+  displayName: 'Install ReportGenerator'
+  workingDirectory: '../sample'
+
+- script: npm install
+  displayName: 'Install dependencies'
+  workingDirectory: '../sample'
+
+- script: |
+    rm -R ./node_modules/react-native-azurenotificationhub/*
+    cp -R ../s/* ./node_modules/react-native-azurenotificationhub/
+    cp ../s/.slather.yml .
+  displayName: 'Copying react-native-azurenotificationhub'
+  workingDirectory: '../sample'
+
+- script: npm run lint
+  displayName: 'Run lint'
+  workingDirectory: '../sample'
+
+- task: Gradle@2
+  displayName: 'Building Android'
+  inputs:
+    workingDirectory: '../sample/android'
+    gradleWrapperFile: '../sample/android/gradlew'
+    tasks: 'assembleRelease'
+  continueOnError: false
+  
+- task: Gradle@2
+  displayName: 'Running Android unit tests'
+  inputs:
+    workingDirectory: '../sample/android'
+    gradleWrapperFile: '../sample/android/gradlew'
+    testResultsFiles: '../sample/android/app/build/test-results/testDebugUnitTest/*.xml'
+    publishJUnitResults: 'true'
+    tasks: 'test'
+  continueOnError: false
+
+- task: Gradle@2
+  displayName: 'Generate Android code coverage'
+  inputs:
+    workingDirectory: '../sample/android'
+    gradleWrapperFile: '../sample/android/gradlew'
+    tasks: 'clean createOfflineTestCoverageReport jacocoTestReport'
+  continueOnError: false
+
+- script: python ./cover2cover.py ./jacocoXml.xml>jacoco.xml
+  displayName: 'Convert Jacoco report to Cobertura'
+  workingDirectory: '../sample'
+
+- script: |
+    pod install
+    pod update
+    sudo cp -R ../node_modules/react-native-azurenotificationhub/ios Pods/RNAzureNotificationHub
+    sudo chown -R $(id -u):$(id -g) Pods/RNAzureNotificationHub
+    pod update
+  displayName: 'Install CocoaPods dependencies'
+  workingDirectory: '../sample/ios'
+
+- task: Xcode@5
+  displayName: 'Building iOS'
+  inputs:
+    actions: 'build'
+    scheme: 'ReactNativeAzureNotificationHubSample'
+    sdk: 'iphoneos'
+    configuration: 'Release'
+    xcWorkspacePath: '../sample/ios/ReactNativeAzureNotificationHubSample.xcworkspace'
+    xcodeVersion: '10'
+    signingOption: 'nosign'
+    useXcpretty: 'true'
+    
+- task: Xcode@5
+  displayName: 'Running iOS unit tests'
+  inputs:
+    actions: 'test'
+    scheme: 'ReactNativeAzureNotificationHubSample'
+    sdk: 'iphonesimulator'
+    configuration: 'Debug'
+    xcWorkspacePath: '../sample/ios/ReactNativeAzureNotificationHubSample.xcworkspace'
+    xcodeVersion: '10'
+    signingOption: 'nosign'
+    useXcpretty: 'true'
+    destination: 'platform=iOS Simulator, name=iPhone 8'
+    destinationPlatformOption: 'iOS'
+    destinationTypeOption: 'simulators'
+    destinationSimulators: 'iPhone 8'
+    publishJUnitResults: 'true'
+
+- script: slather
+  displayName: 'Running slather'
+  workingDirectory: '../sample'
+
+- script: reportgenerator "-reports:*.xml" "-reporttypes:cobertura" "-targetdir:."
+  displayName: 'Merge Android and iOS reports'
+  workingDirectory: '../sample'  
+
+- task: PublishCodeCoverageResults@1
+  inputs:
+    codeCoverageTool: 'Cobertura'
+    summaryFileLocation: '../sample/cobertura.xml'
