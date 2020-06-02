@@ -26,6 +26,7 @@ public final class ReactNativeConstants {
     public static final String KEY_REGISTRATION_TEMPLATENAME = "templateName";
     public static final String KEY_REGISTRATION_TEMPLATE = "template";
     public static final String KEY_REGISTRATION_ISTEMPLATE = "isTemplate";
+    public static final String KEY_REGISTRATION_BACKGROUNDTASK = "backgroundTaskName";
 
     // Shared prefs used in NotificationHubUtil
     public static final String SHARED_PREFS_NAME = "com.azure.reactnative.notificationhub.NotificationHubUtil";
