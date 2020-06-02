@@ -21,12 +21,12 @@ const PushNotificationEmitter = new NativeEventEmitter(RCTAzureNotificationHubMa
 
 const _notifHandlers = new Map();
 
-const DEVICE_NOTIF_EVENT = 'remoteNotificationReceived';
-const NOTIF_REGISTER_EVENT = 'remoteNotificationsRegistered';
-const NOTIF_REGISTRATION_ERROR_EVENT = 'remoteNotificationRegistrationError';
-const NOTIF_REGISTER_AZURE_HUB_EVENT = 'azureNotificationHubRegistered';
-const NOTIF_AZURE_HUB_REGISTRATION_ERROR_EVENT = 'azureNotificationHubRegistrationError';
-const DEVICE_LOCAL_NOTIF_EVENT = 'localNotificationReceived';
+const DEVICE_LOCAL_NOTIF_EVENT                  = 'localNotificationReceived';
+const DEVICE_NOTIF_EVENT                        = 'remoteNotificationReceived';
+const NOTIF_REGISTER_EVENT                      = 'remoteNotificationRegistered';
+const NOTIF_REGISTRATION_ERROR_EVENT            = 'remoteNotificationRegisteredError';
+const NOTIF_REGISTER_AZURE_HUB_EVENT            = 'azureNotificationHubRegistered';
+const NOTIF_AZURE_HUB_REGISTRATION_ERROR_EVENT  = 'azureNotificationHubRegisteredError';
 
 /**
  * An event emitted by AzureNotificationHubIOS.
@@ -204,9 +204,9 @@ class AzureNotificationHubIOS {
    * Valid events are:
    *
    * - `notification` : Fired when a remote notification is received. The
-   *   handler will be invoked with an instance of `PushNotificationIOS`.
+   *   handler will be invoked with an instance of `AzureNotificationHubIOS`.
    * - `localNotification` : Fired when a local notification is received. The
-   *   handler will be invoked with an instance of `PushNotificationIOS`.
+   *   handler will be invoked with an instance of `AzureNotificationHubIOS`.
    * - `register`: Fired when the user registers for remote notifications. The
    *   handler will be invoked with a hex string representing the deviceToken.
    * - `registrationError`: Fired when the user fails to register for remote
@@ -357,12 +357,20 @@ class AzureNotificationHubIOS {
     RCTAzureNotificationHubManager.checkPermissions(callback);
   }
 
-  static register(deviceToken, config) {
-    RCTAzureNotificationHubManager.register(deviceToken, config);
+  static register(deviceToken, config): Promise<string | Object> {
+    return RCTAzureNotificationHubManager.register(deviceToken, config);
   }
 
-  static unregister() {
-    RCTAzureNotificationHubManager.unregister();
+  static registerTemplate(deviceToken, config): Promise<string | Object> {
+    return RCTAzureNotificationHubManager.registerTemplate(deviceToken, config);
+  }
+
+  static unregister(): Promise<string | Object> {
+    return RCTAzureNotificationHubManager.unregister();
+  }
+
+  static unregisterTemplate(templateName): Promise<string | Object> {
+    return RCTAzureNotificationHubManager.unregisterTemplate(templateName);
   }
 
   /**
