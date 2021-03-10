@@ -64,7 +64,14 @@ public class ReactNativeNotificationsHandler extends NotificationsHandler {
         Bundle serviceBundle = new Bundle(bundle);
         serviceBundle.putString("taskName", taskName);
         service.putExtras(serviceBundle);
-        context.startService(service);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          // Starting Android Oreo only certain tasks can be handled in the background.
+          Log.i(TAG, "Handling with start foreground service");
+          context.startForegroundService(service);
+        } else {
+          Log.i(TAG, "sendToBackground: start regular service");
+          context.startService(service);
+        }
     }
 
     private boolean isAppOnForeground(Context context) {
